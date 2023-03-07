@@ -275,6 +275,7 @@ class RabbitmqBroker(Broker):
         arguments = {
             "x-dead-letter-exchange": "",
             "x-dead-letter-routing-key": xq_name(queue_name),
+            "x-queue-type": "quorum",
         }
         if self.max_priority:
             arguments["x-max-priority"] = self.max_priority
@@ -294,6 +295,7 @@ class RabbitmqBroker(Broker):
             # This HAS to be a static value since messages are expired
             # in order inside of RabbitMQ (head-first).
             "x-message-ttl": DEAD_MESSAGE_TTL,
+            "x-queue-type": "quorum",
         })
 
     def enqueue(self, message, *, delay=None):
