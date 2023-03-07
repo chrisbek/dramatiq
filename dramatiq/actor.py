@@ -61,6 +61,7 @@ class Actor(Generic[P, R]):
         queue_name: str,
         priority: int,
         options: Dict[str, Any],
+        quorum: bool = False,
     ) -> None:
         self.logger = get_logger(fn.__module__, actor_name)
         self.fn = fn
@@ -69,6 +70,7 @@ class Actor(Generic[P, R]):
         self.queue_name = queue_name
         self.priority = priority
         self.options = options
+        self.quorum = quorum
         self.broker.declare_actor(self)
 
     def message(self, *args: P.args, **kwargs: P.kwargs) -> Message[R]:

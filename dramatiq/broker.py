@@ -187,11 +187,11 @@ class Broker:
           actor(Actor): The actor being declared.
         """
         self.emit_before("declare_actor", actor)
-        self.declare_queue(actor.queue_name)
+        self.declare_queue(actor.queue_name, quorum=actor.quorum)
         self.actors[actor.actor_name] = actor
         self.emit_after("declare_actor", actor)
 
-    def declare_queue(self, queue_name):  # pragma: no cover
+    def declare_queue(self, queue_name, **kwargs):  # pragma: no cover
         """Declare a queue on this broker.  This method must be
         idempotent.
 

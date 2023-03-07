@@ -219,7 +219,7 @@ class RabbitmqBroker(Broker):
         self.declare_queue(queue_name, ensure=True)
         return self.consumer_class(self.parameters, queue_name, prefetch, timeout)
 
-    def declare_queue(self, queue_name, *, ensure=False):
+    def declare_queue(self, queue_name, *, ensure=False, quorum=True):
         """Declare a queue.  Has no effect if a queue with the given
         name already exists.
 
@@ -227,6 +227,7 @@ class RabbitmqBroker(Broker):
           queue_name(str): The name of the new queue.
           ensure(bool): When True, the queue is created immediately on
             the server.
+          quorum(bool): When True, the created queue is a quorum queue.
 
         Raises:
           ConnectionClosed: When ensure=True if the underlying channel
@@ -243,16 +244,16 @@ class RabbitmqBroker(Broker):
             self.emit_after("declare_delay_queue", delayed_name)
 
         if ensure:
-            self._ensure_queue(queue_name)
+            self._ensure_queue(queue_name, quorum)
 
-    def _ensure_queue(self, queue_name):
+    def _ensure_queue(self, queue_name, quorum):
         attempts = 1
         while True:
             try:
                 if queue_name in self.queues_pending:
-                    self._declare_queue(queue_name)
-                    self._declare_dq_queue(queue_name)
-                    self._declare_xq_queue(queue_name)
+                    self._declare_queue(queue_name, quorum)
+                    self._declare_dq_queue(queue_name, quorum)
+                    self._declare_xq_queue(queue_name, quorum)
                     self.queues_pending.discard(queue_name)
 
                 break
@@ -274,29 +275,34 @@ class RabbitmqBroker(Broker):
     def _build_queue_arguments(self, queue_name):
         arguments = {
             "x-dead-letter-exchange": "",
-            "x-dead-letter-routing-key": xq_name(queue_name),
-            "x-queue-type": "quorum",
+            "x-dead-letter-routing-key": xq_name(queue_name)
         }
         if self.max_priority:
             arguments["x-max-priority"] = self.max_priority
 
         return arguments
 
-    def _declare_queue(self, queue_name):
+    def _declare_queue(self, queue_name, quorum=False):
         arguments = self._build_queue_arguments(queue_name)
+        if quorum:
+            arguments['x-queue-type'] = 'quorum'
         return self.channel.queue_declare(queue=queue_name, durable=True, arguments=arguments)
 
-    def _declare_dq_queue(self, queue_name):
+    def _declare_dq_queue(self, queue_name, quorum=False):
         arguments = self._build_queue_arguments(queue_name)
+        if quorum:
+            arguments['x-queue-type'] = 'quorum'
         return self.channel.queue_declare(queue=dq_name(queue_name), durable=True, arguments=arguments)
 
-    def _declare_xq_queue(self, queue_name):
-        return self.channel.queue_declare(queue=xq_name(queue_name), durable=True, arguments={
+    def _declare_xq_queue(self, queue_name, quorum=False):
+        arguments = {
             # This HAS to be a static value since messages are expired
             # in order inside of RabbitMQ (head-first).
             "x-message-ttl": DEAD_MESSAGE_TTL,
-            "x-queue-type": "quorum",
-        })
+        }
+        if quorum:
+            arguments['x-queue-type'] = 'quorum'
+        return self.channel.queue_declare(queue=xq_name(queue_name), durable=True, arguments=arguments)
 
     def enqueue(self, message, *, delay=None):
         """Enqueue a message.
